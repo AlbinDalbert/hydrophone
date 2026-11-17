@@ -1,4 +1,4 @@
-# gemma-flow
+# hydrophone
 
 Tiny WhisperFlow-ish dictation client for Hyprland + Wayland, backed by a self-hosted Ollama multimodal Gemma model.
 
