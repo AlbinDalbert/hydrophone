@@ -1,0 +1,437 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Amanite — Fractal Editor</title>
+<style>
+  :root {
+    --bg: #16181d;
+    --bg-elev: #1e2127;
+    --bg-panel: #23272e;
+    --bg-hover: #2b3038;
+    --bg-active: #333a44;
+    --border: #2e333c;
+    --text: #d7dbe2;
+    --text-dim: #8b93a1;
+    --text-faint: #5c6470;
+    --accent: #6ea8fe;
+    --accent-soft: rgba(110, 168, 254, 0.14);
+    --link: #7bb5ff;
+    --note: #f0b454;
+    --ok: #5fd08a;
+    --shadow: 0 8px 30px rgba(0,0,0,0.35);
+    --serif: "Iowan Old Style", "Palatino Linotype", Palatino, "Book Antiqua", Georgia, serif;
+    --sans: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    --mono: "JetBrains Mono", "SF Mono", Menlo, Consolas, monospace;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  html, body {
+    height: 100%;
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--sans);
+    -webkit-font-smoothing: antialiased;
+    overflow: hidden;
+  }
+
+  /* ---------- App shell ---------- */
+  .app {
+    display: grid;
+    grid-template-columns: 250px 1fr 280px;
+    grid-template-rows: 44px 1fr 26px;
+    grid-template-areas:
+      "top   top   top"
+      "side  main  info"
+      "status status status";
+    height: 100vh;
+    background: var(--bg);
+  }
+
+  /* ---------- Title bar ---------- */
+  .titlebar {
+    grid-area: top;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 0 14px;
+    background: var(--bg-elev);
+    border-bottom: 1px solid var(--border);
+    -webkit-app-region: drag;
+  }
+  .window-controls { display: flex; gap: 8px; }
+  .dot { width: 12px; height: 12px; border-radius: 50%; }
+  .dot.close { background: #ff5f57; }
+  .dot.min  { background: #febc2e; }
+  .dot.zoom { background: #28c840; }
+
+  .brand { display: flex; align-items: center; gap: 9px; }
+  .brand .logo {
+    width: 20px; height: 20px; border-radius: 6px;
+    background: linear-gradient(135deg, #6ea8fe, #b98cff);
+    display: grid; place-items: center;
+    color: #16181d; font-weight: 800; font-size: 12px;
+    font-family: var(--serif);
+  }
+  .brand .name { font-weight: 600; font-size: 13.5px; letter-spacing: 0.2px; }
+  .brand .sep { color: var(--text-faint); }
+  .brand .proj { color: var(--text-dim); font-size: 13px; }
+
+  .titlebar .spacer { flex: 1; }
+  .titlebar .state {
+    font-size: 12px; color: var(--text-dim);
+    display: flex; align-items: center; gap: 6px;
+  }
+  .status-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--ok); }
+
+  /* ---------- Sidebar ---------- */
+  .sidebar {
+    grid-area: side;
+    background: var(--bg-elev);
+    border-right: 1px solid var(--border);
+    overflow-y: auto;
+    padding: 12px 0;
+  }
+  .sidebar::-webkit-scrollbar { width: 8px; }
+  .sidebar::-webkit-scrollbar-thumb { background: var(--bg-active); border-radius: 4px; }
+
+  .side-head {
+    padding: 2px 14px 10px;
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  .side-head h3 { font-size: 11px; text-transform: uppercase; letter-spacing: 1px; color: var(--text-faint); font-weight: 600; }
+  .side-head .add { color: var(--text-dim); cursor: pointer; font-size: 16px; line-height: 1; }
+  .side-head .add:hover { color: var(--accent); }
+
+  .search {
+    margin: 0 12px 12px;
+    display: flex; align-items: center; gap: 8px;
+    padding: 7px 10px;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 7px;
+    color: var(--text-faint);
+    font-size: 12.5px;
+  }
+  .search input {
+    background: transparent; border: none; outline: none;
+    color: var(--text); font-size: 12.5px; flex: 1; font-family: var(--sans);
+  }
+
+  .tree-node { }
+  .row {
+    display: flex; align-items: center; gap: 7px;
+    padding: 5px 12px 5px calc(12px + var(--depth, 0) * 16px);
+    font-size: 13px; color: var(--text-dim);
+    cursor: pointer; user-select: none;
+    white-space: nowrap;
+  }
+  .row:hover { background: var(--bg-hover); color: var(--text); }
+  .row.active { background: var(--accent-soft); color: var(--text); }
+  .row.active .ico { color: var(--accent); }
+  .row .ico { font-size: 12px; width: 14px; text-align: center; color: var(--text-faint); }
+  .row .chev { font-size: 10px; color: var(--text-faint); }
+  .row .tag { font-size: 9px; padding: 1px 5px; border-radius: 4px; background: var(--bg-active); color: var(--text-dim); margin-left: 4px; }
+  .row .title { overflow: hidden; text-overflow: ellipsis; }
+
+  /* ---------- Main editor ---------- */
+  .main {
+    grid-area: main;
+    overflow-y: auto;
+    background: var(--bg);
+    display: flex; justify-content: center;
+  }
+  .main::-webkit-scrollbar { width: 10px; }
+  .main::-webkit-scrollbar-thumb { background: var(--bg-active); border-radius: 5px; }
+
+  .page {
+    width: 100%;
+    max-width: 720px;
+    padding: 56px 56px 120px;
+  }
+
+  .crumbs {
+    font-size: 12px; color: var(--text-faint); margin-bottom: 22px;
+    display: flex; gap: 8px; align-items: center;
+  }
+  .crumbs span { color: var(--text-dim); }
+
+  .page-title {
+    font-family: var(--serif);
+    font-size: 34px; font-weight: 600; line-height: 1.2;
+    color: var(--text); margin-bottom: 10px;
+    outline: none;
+  }
+  .page-title:focus { box-shadow: inset 0 -2px 0 var(--accent); }
+
+  .meta-row {
+    display: flex; align-items: center; gap: 16px;
+    font-size: 12.5px; color: var(--text-faint);
+    margin-bottom: 28px; padding-bottom: 18px;
+    border-bottom: 1px solid var(--border);
+  }
+  .meta-row .badge {
+    display: inline-flex; align-items: center; gap: 5px;
+    padding: 3px 9px; border-radius: 20px;
+    background: var(--accent-soft); color: var(--accent);
+    font-size: 11px; font-family: var(--sans); font-weight: 500;
+  }
+
+  .editor { font-family: var(--serif); font-size: 18px; line-height: 1.75; color: #c6ccd6; }
+  .editor p { margin-bottom: 16px; }
+  .editor h2 {
+    font-family: var(--sans);
+    font-size: 20px; font-weight: 600; color: var(--text);
+    margin: 28px 0 12px;
+  }
+  .editor .placeholder {
+    color: var(--text-faint); font-style: italic; font-size: 16px;
+  }
+  .editor .link {
+    color: var(--link); text-decoration: none;
+    border-bottom: 1px solid rgba(123,181,255,0.4);
+    cursor: pointer;
+  }
+  .editor .link:hover { border-bottom-color: var(--link); }
+  .editor .new-link {
+    color: var(--note); border-bottom: 1px dashed rgba(240,180,84,0.6);
+  }
+
+  .fractal-block {
+    margin: 24px 0;
+    padding: 16px 18px;
+    background: var(--bg-panel);
+    border: 1px solid var(--border);
+    border-left: 3px solid var(--note);
+    border-radius: 8px;
+    font-family: var(--mono);
+    font-size: 12.5px; color: var(--text-dim);
+  }
+  .fractal-block .hdr { color: var(--note); margin-bottom: 6px; font-size: 11px; text-transform: uppercase; letter-spacing: 1px; }
+  .fractal-block code { color: var(--text); }
+
+  /* ---------- Info panel ---------- */
+  .info {
+    grid-area: info;
+    background: var(--bg-elev);
+    border-left: 1px solid var(--border);
+    overflow-y: auto;
+    padding: 16px;
+  }
+  .info::-webkit-scrollbar { width: 8px; }
+  .info::-webkit-scrollbar-thumb { background: var(--bg-active); border-radius: 4px; }
+
+  .info-tab {
+    display: flex; gap: 4px; margin-bottom: 16px;
+    padding: 3px; background: var(--bg); border-radius: 8px;
+    border: 1px solid var(--border);
+  }
+  .info-tab button {
+    flex: 1; border: none; background: transparent;
+    padding: 6px 8px; border-radius: 6px; font-size: 12px;
+    color: var(--text-faint); cursor: pointer; font-family: var(--sans);
+    font-weight: 500;
+  }
+  .info-tab button.on { background: var(--bg-active); color: var(--text); }
+  .info-tab button:hover { color: var(--text); }
+
+  .info-section { margin-bottom: 20px; }
+  .info-section h4 {
+    font-size: 10.5px; text-transform: uppercase; letter-spacing: 1px;
+    color: var(--text-faint); margin-bottom: 9px; font-weight: 600;
+  }
+
+  .link-item {
+    display: flex; align-items: center; gap: 8px;
+    padding: 7px 9px; border-radius: 6px;
+    font-size: 12.5px; cursor: pointer;
+    border: 1px solid transparent;
+  }
+  .link-item:hover { background: var(--bg-hover); color: var(--text); }
+  .link-item .ico { font-size: 11px; color: var(--text-faint); width: 14px; text-align: center; }
+  .link-item .lbl { flex: 1; overflow: hidden; text-overflow: ellipsis; }
+  .link-item .link .ico { color: var(--link); }
+  .link-item .back .ico { color: var(--ok); }
+  .link-item .miss .ico { color: var(--note); }
+
+  .note {
+    padding: 10px 12px;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    font-size: 12.5px; color: var(--text-dim);
+    line-height: 1.5;
+  }
+  .note .author { color: var(--accent); font-weight: 500; }
+
+  .tags { display: flex; flex-wrap: wrap; gap: 6px; }
+  .tag-chip {
+    font-size: 11px; padding: 3px 9px; border-radius: 20px;
+    background: var(--bg); border: 1px solid var(--border); color: var(--text-dim);
+    cursor: pointer;
+  }
+  .tag-chip:hover { border-color: var(--accent); color: var(--accent); }
+
+  /* ---------- Status bar ---------- */
+  .statusbar {
+    grid-area: status;
+    display: flex; align-items: center; gap: 18px;
+    padding: 0 14px;
+    background: var(--accent);
+    color: #12141a;
+    font-size: 11.5px; font-weight: 500;
+  }
+  .statusbar .item { display: flex; align-items: center; gap: 5px; }
+  .statusbar .grow { flex: 1; }
+  .statusbar .right { display: flex; gap: 18px; }
+</style>
+</head>
+<body>
+<div class="app">
+
+  <!-- Title bar -->
+  <div class="titlebar">
+    <div class="window-controls">
+      <div class="dot close"></div>
+      <div class="dot min"></div>
+      <div class="dot zoom"></div>
+    </div>
+    <div class="brand">
+      <div class="logo">A</div>
+      <div class="name">Amanite</div>
+      <div class="sep">/</div>
+      <div class="proj">notes/</div>
+    </div>
+    <div class="spacer"></div>
+    <div class="state"><span class="status-dot"></span> Saved locally · fractal</div>
+  </div>
+
+  <!-- Sidebar: pages/files -->
+  <aside class="sidebar">
+    <div class="side-head">
+      <h3>Fractal</h3>
+      <span class="add">+</span>
+    </div>
+    <div class="search">
+      <span>🔍</span>
+      <input placeholder="Search pages…" />
+    </div>
+
+    <div class="tree-node">
+      <div class="row" style="--depth:0"><span class="chev">▾</span><span class="ico">📁</span><span class="title">root</span></div>
+      <div class="row" style="--depth:1"><span class="chev">▾</span><span class="ico">📁</span><span class="title">notes</span></div>
+      <div class="row" style="--depth:2"><span class="chev">▸</span><span class="ico">📄</span><span class="title">index</span></div>
+      <div class="row active" style="--depth:2"><span class="chev">▸</span><span class="ico">📄</span><span class="title">fractal</span></div>
+      <div class="row" style="--depth:2"><span class="chev">▸</span><span class="ico">📄</span><span class="title">links</span></div>
+      <div class="row" style="--depth:2"><span class="chev">▸</span><span class="ico">📄</span><span class="title">notes</span><span class="tag">3</span></div>
+      <div class="row" style="--depth:1"><span class="chev">▾</span><span class="ico">📁</span><span class="title">projects</span></div>
+      <div class="row" style="--depth:2"><span class="chev">▸</span><span class="ico">📄</span><span class="title">waymarks</span></div>
+      <div class="row" style="--depth:2"><span class="chev">▸</span><span class="ico">📄</span><span class="title">the-shelter</span></div>
+      <div class="row" style="--depth:1"><span class="chev">▾</span><span class="ico">📁</span><span class="title">diary</span></div>
+      <div class="row" style="--depth:2"><span class="chev">▸</span><span class="ico">📄</span><span class="title">2026-06</span></div>
+    </div>
+  </aside>
+
+  <!-- Center: page editor -->
+  <main class="main">
+    <article class="page">
+      <div class="crumbs">
+        notes <span>/</span> <span>fractal</span>
+      </div>
+
+      <div class="page-title" contenteditable="true">fractal</div>
+
+      <div class="meta-row">
+        <span class="badge">● in progress</span>
+        <span>last edited today · 24s ago</span>
+        <span>· 1,240 words · 3 levels</span>
+      </div>
+
+      <div class="editor">
+        <p>
+          A <a class="link">fractal</a> is a self-similar structure: each part contains a
+          copy of the whole, repeated at every scale. It is the idea that keeps pulling me
+          back — the same shape showing up in code, in nature, in the way I keep rewriting
+          the <a class="link">notes</a> file.
+        </p>
+
+        <h2>The core loop</h2>
+        <p>
+          Start with a single node. Expand it into a branch. Then notice that the branch
+          is itself a tiny node, and expand <em>that</em>. There is no bottom — only
+          nested frames of reference.
+        </p>
+
+        <div class="fractal-block">
+          <div class="hdr">fractal.yml</div>
+          <div>title: <code>"fractal"</code></div>
+          <div>status: <code>in_progress</code></div>
+          <div>children: <code>[waymarks, the-shelter]</code></div>
+          <div>parents: <code>[index]</code></div>
+        </div>
+
+        <h2>Open thread</h2>
+        <p class="placeholder">
+          Still untangling the relationship between links and backlinks here…
+          what should render first? <a class="link new-link">[new note]</a>
+        </p>
+      </div>
+    </article>
+  </main>
+
+  <!-- Right: context panel -->
+  <aside class="info">
+    <div class="info-tab">
+      <button class="on">Links</button>
+      <button>Backlinks</button>
+      <button>Notes</button>
+    </div>
+
+    <div class="info-section">
+      <h4>Outgoing</h4>
+      <div class="link-item link"><span class="ico">↗</span><span class="lbl">index</span></div>
+      <div class="link-item link"><span class="ico">↗</span><span class="lbl">notes</span></div>
+      <div class="link-item miss"><span class="ico">?</span><span class="lbl">[new note]</span></div>
+    </div>
+
+    <div class="info-section">
+      <h4>Incoming</h4>
+      <div class="link-item back"><span class="ico">↙</span><span class="lbl">waymarks</span></div>
+      <div class="link-item back"><span class="ico">↙</span><span class="lbl">the-shelter</span></div>
+    </div>
+
+    <div class="info-section">
+      <h4>Notes</h4>
+      <div class="note">
+        <span class="author">you</span> — revisit the core loop sketch; the fractal.yml block
+        might need the <code>children</code> field populated.
+      </div>
+    </div>
+
+    <div class="info-section">
+      <h4>Tags</h4>
+      <div class="tags">
+        <span class="tag-chip">#structure</span>
+        <span class="tag-chip">#meta</span>
+        <span class="tag-chip">#work-in-progress</span>
+      </div>
+    </div>
+  </aside>
+
+  <!-- Status bar -->
+  <div class="statusbar">
+    <div class="item">◆ fractal</div>
+    <div class="item">fractal v3</div>
+    <div class="grow"></div>
+    <div class="right">
+      <div class="item">⬇ local</div>
+      <div class="item">HTML</div>
+      <div class="item">UTF-8</div>
+    </div>
+  </div>
+
+</div>
+</body>
+</html>

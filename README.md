@@ -35,7 +35,19 @@ Pick one in `~/.config/gemma-flow/config.toml`:
 transcription_mode = "gemma_two_pass"  # choose one:
 # "gemma_direct"    = audio -> Gemma final text
 # "gemma_two_pass"  = audio -> Gemma raw transcript -> Gemma cleanup
-# "whisper_gemma"   = local whisper.cpp raw transcript -> Gemma cleanup
+# "whisper_gemma"       = local whisper.cpp raw transcript -> Gemma cleanup
+# "whisper_api_gemma"   = remote Whisper /asr raw transcript -> Gemma cleanup
+```
+
+For a remote Whisper service compatible with `POST /asr`, configure:
+
+```toml
+transcription_mode = "whisper_api_gemma"
+whisper_api_url = "http://whisper.lan"
+whisper_language = "en"
+# whisper_api_vad_filter = true
+# If uploads are too large / reset by the proxy, use lossy speech compression:
+# upload_audio_format = "opus"
 ```
 
 `whisper_gemma` requires a local whisper.cpp binary/model. Configure with:

@@ -1,0 +1,458 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Amanite — Fractal editor mockup</title>
+  <meta name="description" content="Mockup: Amanite, a pane-based desktop editor for local HTML knowledge bases.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300..700&family=Albert:wght@300..800&family=Fragment+Mono:wght@300..500&display=swap" rel="stylesheet">
+  <style>
+    /* ============ Amanite — mycelial dark / bioluminescent ============ */
+    :root {
+      --bg0: #0a0e0a;   /* deep humus */
+      --bg1: #101711;
+      --bg2: #162013;
+      --line: #20291c;
+      --ink:   #d9e4c9;
+      --dim:   #7d8b72;
+      --faint: #4a5747;
+      --chartreuse: #b7f36b;   /* bioluminescent accent */
+      --amber:  #e8b064;      /* warm secondary */
+      --coral:  #ff7d6a;     /* unsaved / dirty */
+      --sage:   #9fd98c;
+      --focus:  rgba(183,243,107,.35);
+      --serif: "Fraunces", "Georgia", serif;
+      --sans:  "Albert", "Archivo", sans-serif;
+      --mono:  "Fragment Mono", "Menlo", monospace;
+    }
+
+    * { box-sizing: border-box; margin: 0; }
+    html, body { height: 100%; }
+    body {
+      font-family: var(--sans);
+      color: var(--ink);
+      background: var(--bg0);
+      overflow: hidden;
+    }
+    ::selection { background: rgba(183,243,107,.28); color: var(--ink); }
+    :focus-visible { outline: none; }
+    button:focus-visible, input:focus-visible, [role="tablist"]:focus-visible {
+      outline: none;
+      box-shadow: 0 0 0 1px var(--focus);
+    }
+
+    /* ============ atmosphere: humus, spores, grain ============ */
+    .humus {
+      position: fixed; inset: 0; z-index: -3;
+      background:
+        radial-gradient(120% 90% at 12% 8%, #13200f 0%, transparent 46%),
+        radial-gradient(90% 70% at 88% 96%, #1a1408 0%, transparent 52%),
+        #0a0e0a;
+    }
+    .spore-field {
+      position: fixed; inset: 0; z-index: -2; pointer-events: none;
+      background-image: radial-gradient(rgba(183,243,107,.075) 1px, transparent 1.6px);
+      background-size: 22px 22px;
+      mask-image: radial-gradient(900px 640px at 22% 40%, #000 0%, transparent 70%);
+    }
+    .grain {
+      position: fixed; inset: 0; z-index: -1; pointer-events: none;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='g'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3C/svg%3E");
+      opacity: .05; mix-blend-mode: soft-light;
+    }
+    .vignette {
+      position: fixed; inset: 0; z-index: -2; pointer-events: none;
+      background: radial-gradient(140% 120% at 50% 18%, transparent 55%, rgba(0,0,0,.42) 100%);
+    }
+
+    /* ============ app grid ============ */
+    .app {
+      min-width: 1160px;
+      height: 100dvh;
+      display: grid;
+      grid-template-columns: 264px 1fr 304px;
+      grid-template-rows: 56px 1fr 30px;
+      grid-template-areas:
+        "topbar topbar topbar"
+        "files    editor context"
+        "status status status";
+    }
+    .pane { position: relative; }
+    .topbar { grid-area: topbar; grid-column: 1 / -1; }
+    .files   { grid-area: files; }
+    .editor  { grid-area: editor; }
+    .context { grid-area: context; }
+    .statusbar { grid-area: statusbar; grid-column: 1 / -1; }
+
+    /* pane-in reveal */
+    @keyframes pane-in { from { opacity: 0; transform: translateY(7px); } }
+    .topbar   { animation: pane-in .55s cubic-bezier(.22,.7,.28,1) .05s both; }
+    .files    { animation: pane-in .55s cubic-bezier(.22,.7,.28,1) .14s both; }
+    .editor   { animation: pane-in .55s cubic-bezier(.22,.7,.28,1) .22s both; }
+    .context  { animation: pane-in .55s cubic-bezier(.22,.7,.28,1) .3s both; }
+    .statusbar{ animation: pane-in .55s cubic-bezier(.22,.7,.28,1) .38s both; }
+
+    /* ============ top bar ============ */
+    .topbar {
+      display: flex; align-items: center; gap: 14px;
+      border-bottom: 1px solid var(--line);
+      background: linear-gradient(180deg, rgba(22,32,19,.5), transparent);
+    }
+    .mark { width: 22px; height: 22px; }
+    .wordmark {
+      font-family: var(--serif); font-weight: 600; font-size: 17px;
+      letter-spacing: .045em; color: var(--ink);
+    }
+    .topbar .rule { width: 1px; height: 18px; background: var(--line); }
+    .crumb { font-family: var(--mono); font-size: 12.5px; color: var(--dim); }
+    .topbar .spacer { flex: 1; }
+    .chip {
+      display: inline-flex; align-items: center; gap: 8px;
+      border: 1px solid var(--line); border-radius: 8px;
+      padding: 4px 10px; font-size: 12.5px; color: var(--dim);
+      background: rgba(22,32,19,.4);
+    }
+    kbd { font-family: var(--mono); font-size: 11px; color: var(--faint); }
+    .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--sage); box-shadow: 0 0 8px 1px rgba(159,217,140,.4); }
+
+    /* ============ left: files ============ */
+    .files { display: flex; flex-direction: column; border-right: 1px solid var(--line); background: rgba(16,23,17,.66); }
+    .search { position: relative; margin: 12px 14px 10px; }
+    .search input {
+      width: 100%; font-family: var(--mono); font-size: 12.5px; color: var(--ink);
+      background: transparent; border: 1px solid var(--line); border-radius: 9px;
+      padding: 7px 10px 7px 24px;
+    }
+    .search .slash {
+      position: absolute; left: 36px; bottom: 7px;
+      font-family: var(--mono); font-size: 10.5px; color: var(--faint);
+    }
+    .search kbd { position: absolute; right: 9px; top: 50%; translate: 0 -50%; }
+
+    .tree { flex: 1; overflow: auto; padding: 2px 8px 18px 12px; }
+    .tree ul { list-style: none; }
+    .row {
+      display: flex; align-items: center; gap: 8px;
+      padding: 5px 8px; border-radius: 7px; cursor: pointer;
+      position: relative; transition: background .25s ease;
+    }
+    .row::after {
+      content: ""; position: absolute; inset: 0; border-radius: 7px;
+      background: linear-gradient(100deg, transparent 30%, rgba(183,243,107,.1) 60%, transparent 70%);
+      transform: translateX(-100%); transition: transform .5s ease;
+    }
+    .row:hover::after { transform: translateX(0); }
+    .row .name { font-size: 13px; color: var(--ink); }
+    .row .meta { margin-left: auto; font-family: var(--mono); font-size: 10.5px; color: var(--faint); }
+    .row .state { width: 6px; height: 6px; border-radius: 50%; background: var(--coral); box-shadow: 0 0 7px 1px rgba(255,125,106,.5); }
+    .row.selected { background: rgba(183,243,107,.08); }
+    .row.selected .name { color: #e6f4d3; }
+    .fold { font-size: 12px; color: var(--faint); }
+    .indent { padding-left: 22px; }
+    .dot-mini { width: 5px; height: 5px; border-radius: 50%; background: var(--amber); box-shadow: 0 0 6px 1px rgba(232,176,100,.45); }
+
+    .roots { border-top: 1px solid var(--line); padding: 12px 14px; }
+    .roots .label {
+      font-family: var(--serif); font-size: 11px; letter-spacing: .18em;
+      text-transform: uppercase; color: var(--faint);
+    }
+    .roots .path { font-family: var(--mono); font-size: 11.5px; color: var(--dim); }
+    .roots .tag { font-size: 10.5px; color: var(--faint); }
+
+    /* ============ center: editor ============ */
+    .editor { display: flex; flex-direction: column; }
+    .crumbbar { display: flex; align-items: center; gap: 14px; padding: 12px 18px; border-bottom: 1px solid var(--line); }
+    .crumb { font-family: var(--mono); font-size: 12.5px; color: var(--dim); }
+    .title {
+      flex: 1; font-family: var(--serif); font-weight: 500; font-size: 21px;
+      color: var(--ink); background: transparent; border: 0;
+    }
+    .title::after { content: ""; position: absolute; }
+    .title:focus { box-shadow: 0 0 0 1px var(--focus); }
+    .state { display: inline-flex; align-items: center; gap: 8px; }
+    .state .dot { transition: box-shadow .3s; }
+    .state.modified .dot { background: var(--amber); box-shadow: 0 0 8px 1px rgba(232,176,100,.45); }
+    .state.unsaved .dot { background: var(--coral); animation: breathe 1.6s ease-in-out infinite; }
+    .state.saved .dot { background: var(--sage); }
+    .state span { font-size: 12.5px; color: var(--dim); }
+    @keyframes breathe {
+      50% { box-shadow: 0 0 14px 3px rgba(255,125,106,.55); }
+    }
+
+    .toolbar { display: flex; align-items: center; gap: 26px; padding: 10px 18px; border-bottom: 1px solid var(--line); }
+    .act {
+      display: inline-flex; align-items: center; gap: 9px;
+      background: none; border: 1px solid var(--line); border-radius: 8px;
+      padding: 6px 12px; font-size: 12.5px; color: var(--ink); cursor: pointer;
+    }
+    .act:hover { border-color: var(--chartreuse); box-shadow: 0 0 14px 0 rgba(183,243,107,.22); }
+    .act kbd { color: var(--faint); }
+    .toolbar .stat { margin-left: auto; font-size: 12px; color: var(--faint); }
+
+    .editor-body { flex: 1; display: grid; grid-template-columns: 52px 1fr; overflow: auto; }
+    .gutter {
+      border-right: 1px solid var(--line);
+      font-family: var(--mono); font-size: 12px; color: var(--faint);
+      padding: 14px 0; text-align: right;
+    }
+    .gutter span { display: block; height: 21px; }
+    .gutter .hl { color: var(--chartreuse); }
+    .code { font-family: var(--mono); font-size: 13.5px; line-height: 21px; padding: 14px 8px; }
+    .code .ln { display: block; }
+    .code .hl { background: rgba(183,243,107,.09); box-shadow: inset 0 0 0 1px rgba(183,243,107,.14); }
+    .code .hl::before { content: "→"; color: var(--chartreuse); padding-right: 4px; }
+    .t-tag { color: var(--chartreuse); }
+    .t-attr { color: var(--amber); }
+    .t-str { color: var(--sage); }
+    .t-kw { color: var(--coral); }
+    .t-var { color: #7fc3b0; }
+    .t-com { color: var(--faint); }
+    .t-plain { color: var(--ink); }
+    .t-dim { color: var(--dim); }
+
+    /* ============ right: context ============ */
+    .context { border-left: 1px solid var(--line); background: rgba(16,23,17,.66); display: flex; flex-direction: column; }
+    .tabs { display: flex; gap: 4px; padding: 10px 14px 0; }
+    .tab {
+      background: none; border: 0; cursor: pointer;
+      font-family: var(--serif); font-size: 13.5px; letter-spacing: .12em;
+      color: var(--dim); position: relative; padding: 2px 0 8px;
+    }
+    .tab::after { content: ""; position: absolute; left: 0; right: 0; bottom: 2px; height: 1.5px; background: var(--chartreuse); transform: scaleX(0); }
+    .tab[aria-selected="true"] { color: var(--ink); }
+    .tab[aria-selected="true"]::after { transform: scaleX(1); }
+    .tab .count { font-family: var(--mono); font-size: 10.5px; color: var(--faint); margin-left: 3px; }
+
+    .lists { flex: 1; overflow: auto; padding: 16px 14px; }
+    .item {
+      display: flex; gap: 10px; padding: 9px 10px; border-radius: 8px;
+      border: 1px solid transparent; transition: background .25s;
+    }
+    .item:hover { background: rgba(183,243,107,.06); }
+    .item .glyph { color: var(--faint); font-size: 12px; }
+    .item .href { font-family: var(--mono); font-size: 12px; color: var(--dim); }
+    .item .note { font-size: 12.5px; color: var(--ink); }
+    .item .kind { margin-left: auto; font-family: var(--mono); font-size: 10.5px; color: var(--faint); }
+
+    .gill { position: relative; padding: 18px 14px 26px; }
+    .gill svg { width: 100%; height: auto; opacity: .5; }
+    .metric { font-family: var(--mono); font-size: 11px; color: var(--faint); text-align: left; }
+
+    /* ============ status bar ============ */
+    .statusbar {
+      display: flex; align-items: center; gap: 22px;
+      border-top: 1px solid var(--line);
+      background: rgba(16,23,17,.7);
+    }
+    .statusbar .cell { font-size: 12px; color: var(--faint); display: inline-flex; align-items: center; gap: 8px; }
+    .statusbar .right { margin-left: auto; }
+
+    /* scrollbars */
+    ::-webkit-scrollbar { width: 8px; height: 8px; }
+    ::-webkit-scrollbar-thumb { background: #26301f; border-radius: 8px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after { animation: none !important; transition: none !important; }
+    }
+  </style>
+</head>
+<body>
+  <div class="humus"></div>
+  <div class="spore-field"></div>
+  <div class="grain"></div>
+  <div class="vignette"></div>
+
+  <div class="app" role="application" aria-label="Amanite editor">
+
+    <header class="topbar pane">
+      <svg class="mark" viewBox="0 0 24 24" aria-hidden="true">
+        <path d="M4 10.5c0-4.2 3.4-7 8-7s8 2.8 8 7H4z" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/>
+        <circle cx="7.6" cy="8.4" r=".9" fill="currentColor" opacity=".55"/>
+        <circle cx="12.6" cy="7.4" r=".9" fill="currentColor" opacity=".55"/>
+        <circle cx="16.4" cy="8.6" r=".9" fill="currentColor" opacity=".55"/>
+        <path d="M9 11v4c0 2.4 2.2 4 3 4s3-1.6 3-4v-4" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/>
+      </svg>
+      <span class="wordmark">Amanite</span>
+      <span class="rule" aria-hidden="true"></span>
+      <span class="crumb">gemmaExper · vault</span>
+      <span class="spacer"></span>
+      <span class="chip">
+        <span class="dot"></span>
+        local · offline
+      </span>
+      <span class="chip">
+        <kbd>⌘S</kbd>
+      </span>
+      <span class="chip">
+        <kbd>⌘K</kbd>
+      </span>
+    </header>
+
+    <!-- files -->
+    <aside class="files pane">
+      <div class="search">
+        <input type="text" placeholder="find pages…" aria-label="Find pages">
+        <span class="slash">/</span>
+        <kbd>⌘K</kbd>
+      </div>
+      <nav class="tree" aria-label="Pages">
+        <ul>
+          <li>
+            <span class="row" data-file="notes/mycelium.html">
+              <span class="name">gemmaExper</span>
+              <span class="meta">vault root</span>
+            </span>
+          </li>
+          <li>
+            <span class="row fold">
+              <span class="name">notes/</span>
+            </span>
+            <ul class="indent">
+              <li>
+                <span class="row" data-file="notes/intro.html">
+                  <span class="name">intro.html</span>
+                </span>
+              </li>
+              <li>
+                <span class="row selected" data-file="notes/mycelium.html">
+                  <span class="state"></span>
+                  <span class="name">mycelium.html</span>
+                </span>
+              </li>
+              <li>
+                <span class="row" data-file="notes/spore-drift.html">
+                  <span class="name">spore-drift.html</span>
+                </span>
+              </li>
+            </ul>
+          </li>
+          <li>
+            <span class="row fold">
+              <span class="name">pages/</span>
+            </span>
+            <ul class="indent">
+              <li>
+                <span class="row" data-file="pages/index.html">
+                  <span class="name">index.html</span>
+                </span>
+              </li>
+              <li>
+                <span class="row" data-file="pages/about.html">
+                  <span class="name">about.html</span>
+                </span>
+              </li>
+            </ul>
+          </li>
+          <li>
+            <span class="row fold">
+              <span class="name">assets/</span>
+            </span>
+            <ul class="indent">
+              <li>
+                <span class="row" data-file="assets/theme.css">
+                  <span class="name">theme.css</span>
+                </span>
+              </li>
+            </ul>
+          </li>
+        </ul>
+      </nav>
+      <div class="roots">
+        <div class="label">local root</div>
+        <div class="path">~/repos/gemmaExper</div>
+        <div class="tag">6 pages · 3.1 MB · no cloud</div>
+      </div>
+    </aside>
+
+    <!-- editor -->
+    <section class="editor pane">
+      <div class="crumbbar">
+        <span class="crumb">notes/</span>
+        <input class="title" value="Mycelium & Signal" aria-label="Page title">
+        <span class="state modified"><span class="dot"></span><span>Modified · 3 edits</span></span>
+      </div>
+      <div class="toolbar">
+        <button class="act" type="button">New page <kbd>⌘N</kbd></button>
+        <button class="act" type="button" data-save>Save <kbd>⌘S</kbd></button>
+        <button class="act" type="button">Preview <kbd>⌘P</kbd></button>
+        <span class="stat">412 words · edited 2s ago</span>
+      </div>
+      <div class="editor-body">
+        <div class="gutter">
+          <span>1</span><span>2</span><span>3</span><span>4</span><span>5</span><span>6</span><span>7</span>
+          <span>8</span><span>9</span><span>10</span><span>11</span><span>12</span>
+          <span>13</span><span>14</span><span>15</span><span>16</span><span>17</span><span>18</span>
+        </div>
+        <pre class="code">
+          <span class="ln"><span class="t-com">&lt;!DOCTYPE html&gt;</span></span>
+          <span class="ln"><span class="t-tag">&lt;html</span> <span class="t-attr">lang=</span><span class="t-str">"en"</span><span class="t-tag">&gt;</span></span>
+          <span class="ln"><span class="t-tag">&lt;head&gt;</span></span>
+          <span class="ln">  <span class="t-tag">&lt;meta</span> <span class="t-attr">charset=</span><span class="t-str">"utf-8"</span><span class="t-tag">&gt;</span></span>
+          <span class="ln">  <span class="t-tag">&lt;title&gt;</span><span class="t-plain">Mycelium &amp; Signal</span><span class="t-tag">&lt;/title&gt;</span></span>
+          <span class="ln">  <span class="t-tag">&lt;link</span> <span class="t-attr">rel=</span><span class="t-str">"stylesheet"</span> <span class="t-attr">href=</span><span class="t-str">"../assets/theme.css"</span><span class="t-tag">&gt;</span></span>
+          <span class="ln"><span class="t-tag">&lt;/head&gt;</span></span>
+          <span class="ln">  <span class="t-tag">&lt;body</span> <span class="t-attr">class=</span><span class="t-str">"spore"</span><span class="t-tag">&gt;</span></span>
+          <span class="ln">  <span class="t-tag">&lt;h1&gt;</span><span class="t-plain">We drift on the mycelium</span><span class="t-tag">&lt;/h1&gt;</span></span>
+          <span class="ln">  <span class="t-tag">&lt;section</span> <span class="t-attr">class=</span><span class="t-str">"signal"</span><span class="t-tag">&gt;</span></span>
+          <span class="ln">    <span class="t-tag">&lt;p&gt;</span><span class="t-plain">The network hums beneath the floor.</span><span class="t-tag">&lt;/p&gt;</span></span>
+          <span class="ln hl">    <span class="t-tag">&lt;a</span> <span class="t-attr">href=</span><span class="t-str">"./spore-drift.html"</span><span class="t-tag">&gt;</span><span class="t-plain">drift →</span><span class="t-tag">&lt;/a&gt;</span></span>
+          <span class="ln">  <span class="t-tag">&lt;/section&gt;</span></span>
+          <span class="ln">  <span class="t-tag">&lt;footer</span> <span class="t-attr">data-spores=</span><span class="t-str">"23"</span><span class="t-tag">&gt;</span></span>
+          <span class="ln">    <span class="t-tag">&lt;small&gt;</span><span class="t-plain">seeded: 2026-06-11</span><span class="t-tag">&lt;/small&gt;</span></span>
+          <span class="ln">  <span class="t-tag">&lt;/footer&gt;</span></span>
+          <span class="ln">  <span class="t-tag">&lt;/body&gt;</span></span>
+          <span class="ln"><span class="t-tag">&lt;/html&gt;</span></span>
+        </pre>
+      </div>
+    </section>
+
+    <!-- context -->
+    <aside class="context pane">
+      <div class="tabs" role="tablist" aria-label="Context tabs">
+        <button class="tab" role="tab" aria-selected="true" aria-label="Links">Links<span class="count">2</span></button>
+        <button class="tab" role="tab" aria-selected="false" aria-label="Backlinks">Backlinks<span class="count">3</span></button>
+        <button class="tab" role="tab" aria-selected="false" aria-label="Notes">Notes<span class="count">1</span></button>
+      </div>
+      <div class="lists">
+        <div class="item">
+          <span class="glyph">→</span>
+          <span class="note">spore-drift.html</span>
+          <span class="kind">note</span>
+        </div>
+        <div class="item">
+          <span class="glyph">→</span>
+          <span class="note">assets/theme.css</span>
+          <span class="kind">asset</span>
+        </div>
+        <div class="item">
+          <span class="glyph">→</span>
+          <span class="note">pages/index.html</span>
+          <span class="kind">page</span>
+        </div>
+      </div>
+      <div class="gill">
+        <svg viewBox="0 0 120 60" aria-hidden="true">
+          <g fill="none" stroke="#b7f36b" stroke-width="1" opacity=".5">
+            <path d="M10 30a50 20 0 0 1 100 0" />
+            <path d="M20 30a40 15 0 0 1 80 0" />
+            <path d="M30 30a30 10 0 0 1 60 0" />
+          </g>
+        </svg>
+        <div class="metric">graph: 3 nodes / 5 edges</div>
+      </div>
+    </aside>
+
+    <!-- status -->
+    <footer class="statusbar pane">
+      <span class="cell"><span class="dot"></span> 2 pages unsaved</span>
+      <span class="cell">Ln 12 · Col 34</span>
+      <span class="cell right"><kbd>utf-8</kbd></span>
+      <span class="cell right">spores today: 23</span>
+    </footer>
+  </div>
+</body>
+</html>
+</html>
